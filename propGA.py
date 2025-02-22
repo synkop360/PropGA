@@ -1,8 +1,11 @@
 import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 import random
 
 from deap import base, creator, tools, algorithms
+
+matplotlib.use('TkAgg')
 
 # Genetic Algorithm constants:
 POPULATION_SIZE = 200 # number of individuals in population
@@ -143,7 +146,7 @@ def evaluate(individual):
     objective1 = efficiency(individual)
     objective2 = T(individual)
 
-    return objective1, objective2
+    return objective1,
 
 def feasible(individual):
     c1 = True if 0 < efficiency(individual) <= 1 else False
@@ -156,7 +159,7 @@ def feasible(individual):
     return c1 and c2 and c3 and c4 and c5 and c6
 
 # Types creation to maximise 2 objectives
-creator.create("FitnessMax", base.Fitness, weights=(1.0, 2.0))
+creator.create("FitnessMax", base.Fitness, weights=(1.0,))
 creator.create("Individual", list, fitness=creator.FitnessMax)
 
 # Toolbox configuration
@@ -176,7 +179,7 @@ def generate_param(EAR=float, PDR=float, D=float, n=float, Z=int):
            args[name] for name in param_names]
 
 toolbox = base.Toolbox()
-toolbox.register("attr_param", generate_param, float, float, float, 720, int)
+toolbox.register("attr_param", generate_param, float, float, float, 720, 5)
 toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.attr_param)
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
@@ -226,8 +229,8 @@ def mate(ind1, ind2, matType, matParam):
                 print("Not a valid mating")
     return ind1, ind2
 
-toolbox.register("mate", mate, matType=["cxBlend", "cxBlend", "cxBlend", None, "cxUniform"], matParam=[0.1, 0.1, 0.1, None, 0.5])
-toolbox.register("mutate", mutate, indpb=0.2, mutType=["mutGauss", "mutGauss", "mutGauss", None, "mutUniformInt"], mutParam=[0.05, 0.05, 0.05, None, [1,1]])
+toolbox.register("mate", mate, matType=["cxBlend", "cxBlend", "cxBlend", None, None], matParam=[0.1, 0.1, 0.1, None, None])
+toolbox.register("mutate", mutate, indpb=0.2, mutType=["mutGauss", "mutGauss", "mutGauss", None, None], mutParam=[0.05, 0.05, 0.05, None, None])
 toolbox.register("select", tools.selNSGA2)
 toolbox.register("evaluate", evaluate)
 toolbox.decorate("evaluate", tools.DeltaPenalty(feasible, 0.1))
@@ -235,22 +238,40 @@ toolbox.decorate("evaluate", tools.DeltaPenalty(feasible, 0.1))
 
 # Paramètres de l'algorithme
 def main():
-    pop_size = 200
-    generations = 250
+    pop_size = 100
+    generations = 50
     cx_prob = 0.6  # Probabilité de croisement
     mut_prob = 0.4  # Probabilité de mutation
 
     pop = toolbox.population(n=pop_size)
+    
     stats = tools.Statistics(lambda ind: ind.fitness.values)
-    stats.register("avg", np.mean)
-    stats.register("std", np.std)
-    stats.register("min", np.min)
-    stats.register("max", np.max)
+    stats.register("avg", lambda fits: np.mean([f[0] for f in fits]) if fits else 0)
+    stats.register("std", lambda fits: np.std([f[0] for f in fits]) if fits else 0)
+    stats.register("min", lambda fits: np.min([f[0] for f in fits]) if fits else 0)
+    stats.register("max", lambda fits: np.max([f[0] for f in fits]) if fits else 0)
     logbook = tools.Logbook()
 
     hof = tools.HallOfFame(10)
-    algorithms.eaMuPlusLambda(pop, toolbox, mu=pop_size, lambda_=pop_size, cxpb=cx_prob, mutpb=mut_prob, ngen=generations, stats=stats, halloffame=hof, verbose=True)
+    pop, logbook = algorithms.eaMuPlusLambda(pop, toolbox, mu=pop_size, lambda_=pop_size, cxpb=cx_prob, mutpb=mut_prob, ngen=generations, stats=stats, halloffame=hof, verbose=True)
+
+        # Tracer l'évolution des objectifs
+    if len(logbook):
+        gen = logbook.select("gen")
+        avg_fitness = logbook.select("avg")
+        max_fitness = logbook.select("max")
+    else:
+        gen, avg_fitness, max_fitness = [], [], []
     
+    plt.figure(figsize=(10, 5))
+    plt.plot(gen, avg_fitness, label="Fitness Moyenne")
+    plt.plot(gen, max_fitness, label="Fitness Maximale")
+    plt.xlabel("Générations")
+    plt.ylabel("Valeur de Fitness")
+    plt.legend()
+    plt.title("Évolution de la Fitness au cours des générations")
+    plt.show()
+
     return pop, hof, logbook
 
 if __name__ == "__main__":
